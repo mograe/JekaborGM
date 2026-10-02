@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/mograne/Projects/JekaborGM/build/vst3_helpers/OurGM/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

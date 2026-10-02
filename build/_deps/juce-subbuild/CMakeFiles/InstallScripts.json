@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/mograne/Projects/JekaborGM/build/_deps/juce-subbuild/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

@@ -1,0 +1,3 @@
+/home/mograne/Projects/JekaborGM/build/vst3_helpers/OurGM/CMakeFiles/vst3_helper.dir
+/home/mograne/Projects/JekaborGM/build/vst3_helpers/OurGM/CMakeFiles/edit_cache.dir
+/home/mograne/Projects/JekaborGM/build/vst3_helpers/OurGM/CMakeFiles/rebuild_cache.dir
