@@ -42,6 +42,7 @@ private:
     juce::Component controls;
     juce::ComboBox channelSelector, bankSelector, instrumentSelector;
     juce::TextButton previous { "<" }, next { ">" }, selectSoundFont { "LOAD SF" }, panicButton { "ALL NOTES OFF" };
+    juce::TextButton resetButton { "RESET ALL" };
     juce::ToggleButton filterSwitch { "ON" };
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> filterAttachment;
     std::array<Knob, 19> knobs;

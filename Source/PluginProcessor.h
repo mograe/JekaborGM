@@ -42,6 +42,7 @@ public:
     std::atomic<unsigned> midiActivity { 0 }, fontRevision { 0 }, clipActivity { 0 };
     std::array<std::atomic<float>, 2> peaks {};
     void panic() { panicRequested.store (true); }
+    void resetAllParameters();
     int getControllerValue (int channel, int cc) const
     {
         const auto& c = channels[static_cast<size_t> (juce::jlimit (1, 16, channel) - 1)];

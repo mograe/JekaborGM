@@ -74,7 +74,7 @@ void ModuleLookAndFeel::drawComboBox (juce::Graphics& g, int w, int h, bool, int
 void ModuleLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& b, const juce::Colour&, bool over, bool down)
 {
     const auto r = b.getLocalBounds().toFloat().reduced (0.5f);
-    const bool reset = b.getName() == "panic";
+    const bool reset = b.getName() == "panic" || b.getName() == "resetAll";
     g.setColour (down ? steel : over ? panel.brighter (0.12f) : juce::Colour (0xff253949));
     g.fillRoundedRectangle (r, 2);
     g.setColour (over || b.hasKeyboardFocus (true) ? accent : reset ? amber.withAlpha (0.48f) : steel);
@@ -96,7 +96,7 @@ void ModuleLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& but
         g.strokePath (chevron, juce::PathStrokeType (1.6f));
         return;
     }
-    if (direction == "panic")
+    if (direction == "panic" || direction == "resetAll")
     {
         text (g, button.getButtonText(), button.getLocalBounds(), 11.0f, amber,
               juce::Font::bold, juce::Justification::centred);
@@ -161,7 +161,7 @@ JekaborGMAudioProcessorEditor::JekaborGMAudioProcessorEditor (JekaborGMAudioProc
     addAndMakeVisible (controls);
     controls.setSize (layout::width, layout::height);
     for (auto* c : std::initializer_list<juce::Component*> { &channelSelector, &bankSelector, &instrumentSelector,
-         &previous, &next, &selectSoundFont, &panicButton, &filterSwitch }) controls.addAndMakeVisible (c);
+         &previous, &next, &selectSoundFont, &panicButton, &resetButton, &filterSwitch }) controls.addAndMakeVisible (c);
     for (int ch = 1; ch <= 16; ++ch)
         channelSelector.addItem (juce::String (ch).paddedLeft ('0', 2) + (ch == 10 ? " DR" : ""), ch);
     channelSelector.setSelectedId (p.selectedChannel.load(), juce::dontSendNotification);
@@ -207,6 +207,9 @@ JekaborGMAudioProcessorEditor::JekaborGMAudioProcessorEditor (JekaborGMAudioProc
     panicButton.onClick = [this] { processorRef.panic(); };
     panicButton.setName ("panic"); panicButton.setButtonText ("PANIC");
     panicButton.setTooltip ("Silence all 16 channels and release sustain pedals");
+    resetButton.setName ("resetAll");
+    resetButton.setTooltip ("Reset controls for all 16 channels and the stereo output. Keep instruments, banks, MIDI channel and SoundFont.");
+    resetButton.onClick = [this] { processorRef.resetAllParameters(); bindChannel(); repaint(); };
     selectSoundFont.onClick = [this]
     {
         soundFontChooser = std::make_unique<juce::FileChooser> ("Load SoundFont", juce::File {}, "*.sf2;*.sf3");
@@ -488,8 +491,7 @@ void JekaborGMAudioProcessorEditor::paint (juce::Graphics& g)
     text (g, "MIDI / RESET", { 736, 430, 108, 20 }, 10, muted, juce::Font::bold, juce::Justification::centred);
     g.setColour (steel.withAlpha (0.6f)); g.drawVerticalLine (724, 427, 545);
     drawKnobLabels (g);
-    text (g, "ALL PARTS", { 738, 460, 104, 16 }, 9.5f, muted, 0, juce::Justification::centred);
-    text (g, "ALL NOTES OFF", { 738, 517, 104, 16 }, 9, muted, 0, juce::Justification::centred);
+    text (g, "ALL PARTS", { 738, 457, 104, 16 }, 9.5f, muted, 0, juce::Justification::centred);
     text (g, "GENERAL MIDI / 16 CHANNELS", { 24, 548, 340, 11 }, 8, muted);
     text (g, "DRAG / WHEEL TO EDIT  /  DOUBLE-CLICK TO RESET", { 390, 548, 466, 11 }, 8, muted, 0, juce::Justification::centredRight);
     for (const auto point : { juce::Point<float> (10, 10), { 870, 10 }, { 10, 550 }, { 870, 550 } })
@@ -524,5 +526,6 @@ void JekaborGMAudioProcessorEditor::resized()
     placeKnobs (10, 4, layout::envelope, 70);
     placeKnobs (14, 4, { 364, 426, 360, 120 }, 70);
     knobs[18].slider.setBounds (656, 123, 78, 78);
-    panicButton.setBounds (738, 483, 104, 28);
+    resetButton.setBounds (738, 479, 104, 26);
+    panicButton.setBounds (738, 511, 104, 26);
 }

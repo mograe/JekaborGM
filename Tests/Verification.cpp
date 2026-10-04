@@ -69,6 +69,12 @@ juce::ComboBox* findComboBox (juce::Component& component, const juce::String& na
     for (auto* child : component.getChildren()) if (auto* box = findComboBox (*child, name)) return box;
     return nullptr;
 }
+juce::TextButton* findButton (juce::Component& component, const juce::String& name)
+{
+    if (auto* button = dynamic_cast<juce::TextButton*> (&component); button != nullptr && button->getName() == name) return button;
+    for (auto* child : component.getChildren()) if (auto* button = findButton (*child, name)) return button;
+    return nullptr;
+}
 void selectBeforeTimer (juce::ComboBox& box, int id)
 {
     // Popup selections notify asynchronously. Force the editor timer to run first.
@@ -179,8 +185,12 @@ int main (int argc, char** argv)
             juce::AudioBuffer<float> b (2, 256); juce::MidiBuffer m;
             while (running.load()) clean.processBlock (b, m);
         });
-        for (int i = 0; i < 20; ++i) clean.loadSoundFont (dir.getChildFile ("missing.sf2"));
-        running.store (false); callback.join(); require (true, "Concurrent SoundFont maintenance/audio callback completes safely");
+        for (int i = 0; i < 20; ++i)
+        {
+            clean.loadSoundFont (dir.getChildFile ("missing.sf2"));
+            clean.resetAllParameters();
+        }
+        running.store (false); callback.join(); require (true, "Concurrent SoundFont maintenance/reset/audio callback completes safely");
         p.selectedChannel.store (1);
         auto editor = std::unique_ptr<juce::AudioProcessorEditor> (p.createEditor());
         auto* programMenu = findComboBox (*editor, "Program and instrument");
@@ -217,6 +227,60 @@ int main (int argc, char** argv)
         volumeKnob->setValue (20, juce::dontSendNotification);
         volumeKnob->setValue (volumeKnob->getDoubleClickReturnValue(), juce::sendNotificationSync); render (p);
         require (p.getControllerValue (1, 7) == 100, "Knob default reset overrides MIDI even when the host value already equals the default");
+        auto* resetButton = findButton (*editor, "resetAll");
+        require (resetButton != nullptr, "RESET ALL button is available");
+        for (auto* parameter : p.getParameters())
+            parameter->setValueNotifyingHost (parameter->getDefaultValue() < 0.5f ? 1.0f : 0.0f);
+        // MIDI may override a host target that already equals the default.
+        set (p, "volume_1", 100);
+        render (p);
+        midi.addEvent (juce::MidiMessage::controllerEvent (1, 7, 20), 0);
+        midi.addEvent (juce::MidiMessage::controllerEvent (16, 10, 3), 1);
+        midi.addEvent (juce::MidiMessage::controllerEvent (16, 64, 127), 2);
+        midi.addEvent (juce::MidiMessage::pitchWheel (16, 16000), 3);
+        p.processBlock (audio, midi);
+        p.setControllerFromEditor (3, 0, 5);
+        p.selectInstrument (4, 0, 48); // Keep a selection that has not reached the audio callback yet.
+        channelMenu->setSelectedId (16, juce::sendNotificationSync);
+        std::array<JekaborGMAudioProcessor::Instrument, 16> beforeReset;
+        for (int ch = 1; ch <= 16; ++ch) beforeReset[static_cast<size_t> (ch - 1)] = p.getChannelInstrument (ch);
+        juce::MemoryBlock beforeResetState; p.getStateInformation (beforeResetState);
+        const auto beforeResetXml = juce::AudioProcessor::getXmlFromBinary (beforeResetState.getData(), static_cast<int> (beforeResetState.getSize()));
+        const auto fontRevision = p.fontRevision.load();
+        resetButton->onClick();
+        for (auto* parameter : p.getParameters())
+            if (std::abs (parameter->getValue() - parameter->getDefaultValue()) > 0.000001f)
+                throw std::runtime_error ("RESET ALL left a nondefault parameter");
+        require (true, "RESET ALL restores all 215 parameters across all channels and output controls");
+        constexpr std::array<int, 6> resetCC { 7, 10, 11, 91, 93, 1 };
+        constexpr std::array<int, 6> defaultCC { 100, 64, 127, 40, 0, 0 };
+        for (int ch = 1; ch <= 16; ++ch)
+            for (size_t i = 0; i < resetCC.size(); ++i)
+                if (p.getControllerValue (ch, resetCC[i]) != defaultCC[i])
+                    throw std::runtime_error ("RESET ALL left a MIDI or editor controller override");
+        require (p.getControllerValue (16, 64) == 0, "RESET ALL clears MIDI overrides, pending editor controls and sustain");
+        render (p);
+        for (int ch = 1; ch <= 16; ++ch)
+        {
+            const auto instrument = p.getChannelInstrument (ch);
+            const auto& original = beforeReset[static_cast<size_t> (ch - 1)];
+            if (instrument.bank != original.bank || instrument.program != original.program)
+                throw std::runtime_error ("RESET ALL changed a bank or instrument");
+        }
+        juce::MemoryBlock resetState; p.getStateInformation (resetState);
+        const auto resetXml = juce::AudioProcessor::getXmlFromBinary (resetState.getData(), static_cast<int> (resetState.getSize()));
+        require (p.selectedChannel.load() == 16 && channelMenu->getSelectedId() == 16
+                 && p.fontRevision.load() == fontRevision
+                 && resetXml->getStringAttribute ("soundFont") == beforeResetXml->getStringAttribute ("soundFont"),
+                 "RESET ALL preserves instruments, banks, selected MIDI channel and SoundFont");
+        require (volumeKnob->getValue() == 100 && attackKnob->getValue() == 0,
+                 "RESET ALL refreshes the selected channel's knobs");
+        restored.setStateInformation (resetState.getData(), static_cast<int> (resetState.getSize()));
+        restored.prepareToPlay (96000, 256); render (restored);
+        require (restored.getControllerValue (1, 7) == 100 && restored.getControllerValue (16, 10) == 64
+                 && restored.getControllerValue (16, 64) == 0 && restored.selectedChannel.load() == 16
+                 && restored.getChannelInstrument (4).program == 48,
+                 "Reset defaults and preserved selections survive saving and sample-rate preparation");
         for (const auto size : { juce::Point<int> (880, 560), { 792, 504 }, { 1320, 840 } }) screenshot (*editor, dir, size.x, size.y);
         require (true, "Editor renders at default, minimum, and maximum scale");
         // Visual QA includes neutral controls, bypass, and an error with a working font retained.

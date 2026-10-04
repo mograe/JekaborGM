@@ -138,6 +138,9 @@ post-processing stereo peaks; CLIP holds briefly when the signal reaches full
 scale before protection. A soft output guard is transparent below 0.95 amplitude
 and bounds louder output to +/-1. MIDI IN flashes for notes, CC, program, bend,
 and pressure messages. PANIC (ALL NOTES OFF) silences all parts and releases sustain.
+RESET ALL restores the controls of all sixteen channels and the stereo output to
+their defaults, including MIDI controller overrides and pitch bend. Instruments,
+banks, the selected MIDI channel, and the loaded SoundFont are retained.
 
 Incoming MIDI retains all sixteen channels. MIDI CC changes take precedence until
 the corresponding knob or host parameter changes. Visible controller knobs follow

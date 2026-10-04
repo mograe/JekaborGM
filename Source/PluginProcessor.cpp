@@ -269,6 +269,42 @@ void JekaborGMAudioProcessor::resetControls()
     }
     updateControls (0);
 }
+void JekaborGMAudioProcessor::resetAllParameters()
+{
+    Maintenance guard (*this);
+    for (auto* parameter : getParameters())
+    {
+        parameter->beginChangeGesture();
+        parameter->setValueNotifyingHost (parameter->getDefaultValue());
+        parameter->endChangeGesture();
+    }
+    for (int ch = 0; ch < 16; ++ch)
+    {
+        auto& c = channels[static_cast<size_t> (ch)];
+        for (auto& pending : c.editorCC) pending.store (-1);
+        for (auto& flag : c.midiOverride) flag.store (false);
+        for (auto& value : c.controllerState) value.store (-1);
+        if (synth != nullptr)
+        {
+            // Reset performance controllers without changing the bank or preset.
+            fluid_synth_cc (synth, ch, 121, 0);
+            fluid_synth_pitch_bend (synth, ch, 8192);
+            fluid_synth_channel_pressure (synth, ch, 0);
+            for (int cc = 0; cc < 120; ++cc)
+            {
+                int value = 0;
+                if (isRestorableController (cc) && fluid_synth_get_cc (synth, ch, cc, &value) == FLUID_OK)
+                    c.controllerState[static_cast<size_t> (cc)].store (value);
+            }
+        }
+        else
+            for (size_t i = 0; i < ccNumbers.size(); ++i)
+                c.controllerState[static_cast<size_t> (ccNumbers[i])].store
+                    (juce::roundToInt (c.values[i == 5 ? 10 : i]->load()));
+    }
+    // Also clear MIDI overrides when the host target was already at its default.
+    if (synth != nullptr) resetControls();
+}
 void JekaborGMAudioProcessor::prepareToPlay (double sampleRate, int maximumBlockSize)
 {
     Maintenance guard (*this);
