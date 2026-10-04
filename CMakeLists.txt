@@ -65,6 +65,7 @@ target_compile_definitions(JekaborGM
 target_link_libraries(JekaborGM
     PRIVATE
         juce::juce_audio_utils
+        juce::juce_dsp
         ${JEKABORGM_FLUIDSYNTH_TARGET}
     PUBLIC
         juce::juce_recommended_config_flags
@@ -99,3 +100,26 @@ if(WIN32)
 endif()
 
 juce_enable_vst3_manifest_step(JekaborGM)
+
+option(JEKABORGM_BUILD_TESTS "Build processor regression checks and UI snapshots" OFF)
+if(JEKABORGM_BUILD_TESTS)
+    juce_add_console_app(JekaborGMVerification PRODUCT_NAME "JekaborGM Verification")
+    target_sources(JekaborGMVerification PRIVATE Tests/Verification.cpp)
+    target_include_directories(JekaborGMVerification PRIVATE Source)
+    target_compile_definitions(JekaborGMVerification PRIVATE
+        JucePlugin_Name="JekaborGM" JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
+    target_link_libraries(JekaborGMVerification PRIVATE JekaborGM
+        juce::juce_audio_utils juce::juce_dsp ${JEKABORGM_FLUIDSYNTH_TARGET}
+        juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
+    if(WIN32 AND MSVC AND TARGET FluidSynth::libfluidsynth)
+        target_link_libraries(JekaborGMVerification PRIVATE delayimp)
+        target_link_options(JekaborGMVerification PRIVATE
+            "/DELAYLOAD:$<TARGET_FILE_NAME:FluidSynth::libfluidsynth>")
+        add_custom_command(TARGET JekaborGMVerification POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different ${JEKABORGM_RUNTIME_DLLS}
+                "$<TARGET_FILE_DIR:JekaborGMVerification>" VERBATIM)
+    endif()
+    enable_testing()
+    add_test(NAME JekaborGMVerification COMMAND JekaborGMVerification
+        "${CMAKE_CURRENT_BINARY_DIR}/verification")
+endif()
